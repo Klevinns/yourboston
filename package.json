@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test 'web/tests/*.test.js'"
+    "test": "node --test web/tests/*.test.js"
   },
   "devDependencies": {
     "fast-check": "3.22.0"
