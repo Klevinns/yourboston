@@ -22,15 +22,18 @@ fi
 # Files to scan: everything under .kiro plus staged files (added/copied/modified).
 FILES="$( { find .kiro -type f 2>/dev/null; git diff --cached --name-only --diff-filter=ACM 2>/dev/null; } | sort -u )"
 
-# Generic secret patterns (AWS keys, GitHub/Slack tokens, private keys, key=value assignments).
-PATTERN='(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|password)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][A-Za-z0-9/+_-]{16,}["'"'"'])'
+# Token formats are case-sensitive by spec (AWS key IDs are uppercase, GitHub/Slack
+# prefixes are lowercase); matching them case-insensitively flags base64 data such as
+# the commute vectors in web/data/fitmap.geojson ("AkIA..."). key=value stays -i.
+TOKEN_PATTERN='(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'
+KV_PATTERN='(api[_-]?key|secret|token|password)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][A-Za-z0-9/+_-]{16,}["'"'"']'
 
 while IFS= read -r f; do
   [ -f "$f" ] || continue
   case "$f" in scripts/hooks/check_kiro_committed.sh) continue;; esac
-  if grep -IEiq -- "$PATTERN" "$f" 2>/dev/null; then
+  if grep -IEq -- "$TOKEN_PATTERN" "$f" 2>/dev/null || grep -IEiq -- "$KV_PATTERN" "$f" 2>/dev/null; then
     echo "pre-commit: possible secret in $f:" >&2
-    grep -IEin -- "$PATTERN" "$f" | head -n 3 | sed 's/\(.\{12\}\).*/\1…[redacted]/' >&2
+    { grep -IEn -- "$TOKEN_PATTERN" "$f"; grep -IEin -- "$KV_PATTERN" "$f"; } | head -n 3 | sed 's/\(.\{12\}\).*/\1…[redacted]/' >&2
     fail=1
   fi
   # Exact match on the real Census key if it is set in the environment (never printed).

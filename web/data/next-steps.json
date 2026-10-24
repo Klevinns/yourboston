@@ -1,0 +1,31 @@
+{
+  "verified": "2026-10-24",
+  "note": "Each URL returned HTTP 200 (following redirects) when last verified. Links are informational and lead to public Massachusetts services.",
+  "actions": [
+    {
+      "label": "Call Mass 211",
+      "url": "https://www.mass211.org/",
+      "description": "Free, confidential help in many languages to find housing, utilities, and local services. Dial 2-1-1."
+    },
+    {
+      "label": "Boston housing resources",
+      "url": "https://www.boston.gov/departments/housing",
+      "description": "The City of Boston's housing office: income-restricted listings, renter rights, and homebuyer programs."
+    },
+    {
+      "label": "MA Executive Office of Housing & Livable Communities",
+      "url": "https://www.mass.gov/orgs/executive-office-of-housing-and-livable-communities",
+      "description": "Statewide housing programs, affordable-housing search, and tenant assistance."
+    },
+    {
+      "label": "Plan a commute with the MBTA",
+      "url": "https://www.mbta.com/trip-planner",
+      "description": "Try your real trip by subway, bus, commuter rail, and ferry before you commit to a neighborhood."
+    },
+    {
+      "label": "MassHousing",
+      "url": "https://www.masshousing.com/",
+      "description": "Down-payment assistance and affordable mortgage programs for first-time and moderate-income buyers."
+    }
+  ]
+}

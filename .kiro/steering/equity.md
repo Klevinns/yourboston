@@ -7,6 +7,8 @@ inclusion: always
 ## The rule
 **Demographics, race, ethnicity, language, and EJ2020 environmental-justice status are NEVER scored, weighted, filtered, ranked, sorted, colored, or used as a must-have.** They appear only as **prose / context text** in the tract click-through panel.
 
+A change that breaks this rule is rejected, even if tests pass.
+
 Why: letting users filter or rank neighborhoods by who lives there reproduces redlining and steering, which fair-housing law and basic ethics prohibit. FitMap scores places by cost, access, and safety — never by people.
 
 ## What this means in code
