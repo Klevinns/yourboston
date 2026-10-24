@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FitMap GeoJSON gate: size budget + schema invariants (stdlib only).
+"""YourBoston GeoJSON gate: size budget + schema invariants (stdlib only).
 
 Usage: python3 scripts/hooks/check_geojson.py [path]   (default web/data/fitmap.geojson)
 Exit 0 = pass (or file absent yet), 1 = violations (printed to stderr).

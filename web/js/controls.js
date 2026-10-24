@@ -6,16 +6,16 @@
  */
 
 import { CRITERIA } from './scoring.js';
+import { icon } from './icons.js';
 
 // Human-readable criterion metadata
 const META = {
   rent:    { label: 'Rent (monthly)',        units: '$/mo', thresholdLabel: 'Max rent' },
   value:   { label: 'Home value',            units: '$',    thresholdLabel: 'Max value' },
-  burden:  { label: 'Financial comfort',     units: '% burdened', thresholdLabel: 'Max % cost-burdened' },
+  burden:  { label: 'Housing cost stress',   units: '% stretched', thresholdLabel: 'Max % stretched on housing' },
   commute: { label: 'Commute to work',       units: 'min',  thresholdLabel: 'Max minutes' },
   transit: { label: 'Transit access',        units: 'min walk', thresholdLabel: 'Max walk min' },
-  campus:  { label: 'Campus proximity',      units: 'km',   thresholdLabel: 'Max km' },
-  crime:   { label: 'Crime (reported, per 1,000 residents)', units: 'per 1k', thresholdLabel: 'Max per 1,000' },
+  school:  { label: 'School location',       units: 'mi',   thresholdLabel: 'Max mi' },
 };
 
 // Default state (Req 8.4, 8.5): budget axis + commute must-have; thresholds "no limit".
@@ -26,6 +26,7 @@ export function defaultState() {
     mustHave: Object.fromEntries(CRITERIA.map(k => [k, false])),
     threshold: Object.fromEntries(CRITERIA.map(k => [k, null])),
     workIdx: null,
+    school: null,
     modes: { walk: true, bike: true, car: true, transit: true },
     crimeScope: 'serious',
   };
@@ -35,6 +36,7 @@ let state = defaultState();
 let onChange = null;
 let setWorkArmed = false;
 let onArmWork = null;
+let setSchoolArmed = false;
 
 export function getState() { return state; }
 
@@ -53,6 +55,7 @@ export function initControls(changeHandler, armWorkHandler) {
 
   wireModeSwitch();
   wireWorkButton();
+  wireSchoolButton();
   wireCommuteModes();
   wireCrimeScope();
   renderCriteria();
@@ -122,6 +125,35 @@ export function workOutOfArea() {
 
 export function isWorkArmed() { return setWorkArmed; }
 
+// ── School location ─────────────────────────────────────────────────────────
+function wireSchoolButton() {
+  const btn = document.getElementById('set-school-btn');
+  btn.addEventListener('click', () => {
+    setSchoolArmed = !setSchoolArmed;
+    btn.classList.toggle('armed', setSchoolArmed);
+    btn.textContent = setSchoolArmed ? 'Click the map…' : 'Set school location';
+  });
+}
+
+export function setSchoolLocation(lat, lon) {
+  state.school = { lat, lon };
+  const status = document.getElementById('school-status');
+  if (status) status.textContent = 'School location set. Distance to school now scored.';
+  setSchoolArmed = false;
+  const btn = document.getElementById('set-school-btn');
+  btn.classList.remove('armed');
+  btn.textContent = 'Set school location';
+  renderCriteria();
+  notify();
+}
+
+export function schoolOutOfArea() {
+  const status = document.getElementById('school-status');
+  if (status) status.textContent = 'That spot is outside the mapped area. Pick a place within 10 miles of Boston.';
+}
+
+export function isSchoolArmed() { return setSchoolArmed; }
+
 // ── Commute modes ─────────────────────────────────────────────────────────────
 function wireCommuteModes() {
   document.querySelectorAll('#mode-checkboxes input[data-mode]').forEach(cb => {
@@ -146,6 +178,7 @@ function isActive(key) {
   if (key === 'value' && state.mode === 'rent') return false;
   if (key === 'rent' && state.mode === 'buy') return false;
   if (key === 'commute' && state.workIdx === null) return false;
+  if (key === 'school' && state.school === null) return false;
   return true;
 }
 
@@ -167,6 +200,7 @@ function renderCriteria() {
 
     li.innerHTML = `
       <div class="criterion-head">
+        <span class="drag-handle" title="Drag to reorder">${icon('grip-vertical', 14)}</span>
         <span class="criterion-rank">${active ? (activePos + 1) : '—'}</span>
         <span class="criterion-name">${meta.label}</span>
         <span class="rank-btns">
@@ -199,13 +233,46 @@ function renderCriteria() {
       notify();
     });
 
-    // Threshold
-    li.querySelector('.threshold-input').addEventListener('input', (e) => {
+    // Threshold — typing a value auto-applies it as a must-have so the map reacts live
+    const applyThreshold = (e) => {
       const v = e.target.value.trim();
       const num = v === '' ? null : Number(v);
       // Reject non-finite or negative numbers: store null (no limit)
       state.threshold[key] = (num !== null && Number.isFinite(num) && num >= 0) ? num : null;
+      if (state.threshold[key] !== null) {
+        state.mustHave[key] = true;
+        const cb = li.querySelector('.must-have');
+        if (cb) cb.checked = true;
+      }
       notify();
+    };
+    li.querySelector('.threshold-input').addEventListener('input', applyThreshold);
+    li.querySelector('.threshold-input').addEventListener('change', applyThreshold);
+
+    // Drag-and-drop reorder (rank buttons remain the keyboard fallback)
+    li.draggable = active;
+    li.addEventListener('dragstart', (e) => {
+      if (!active) { e.preventDefault(); return; }
+      e.dataTransfer.setData('text/plain', key);
+      e.dataTransfer.effectAllowed = 'move';
+      li.classList.add('dragging');
+    });
+    li.addEventListener('dragend', () => {
+      li.classList.remove('dragging');
+      document.querySelectorAll('.criterion.drag-over').forEach(el => el.classList.remove('drag-over'));
+    });
+    li.addEventListener('dragover', (e) => {
+      if (!active) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      li.classList.add('drag-over');
+    });
+    li.addEventListener('dragleave', () => li.classList.remove('drag-over'));
+    li.addEventListener('drop', (e) => {
+      e.preventDefault();
+      li.classList.remove('drag-over');
+      const fromKey = e.dataTransfer.getData('text/plain');
+      if (fromKey && fromKey !== key) moveRankTo(fromKey, key);
     });
 
     list.appendChild(li);
@@ -230,6 +297,23 @@ function moveRank(key, delta) {
   // Merge: place active keys in their order, keep inactive at the end in original order
   state.ranks = [...activeRanks, ...inactiveKeys];
 
+  renderCriteria();
+  notify();
+}
+
+/**
+ * Move a criterion to the position of another active criterion (drag-and-drop).
+ */
+function moveRankTo(fromKey, toKey) {
+  if (fromKey === toKey) return;
+  const activeRanks = state.ranks.filter(isActive);
+  const fromIdx = activeRanks.indexOf(fromKey);
+  const toIdx = activeRanks.indexOf(toKey);
+  if (fromIdx < 0 || toIdx < 0) return;
+  activeRanks.splice(fromIdx, 1);
+  activeRanks.splice(toIdx, 0, fromKey);
+  const inactiveKeys = state.ranks.filter(k => !isActive(k));
+  state.ranks = [...activeRanks, ...inactiveKeys];
   renderCriteria();
   notify();
 }

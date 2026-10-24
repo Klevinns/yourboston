@@ -112,14 +112,21 @@ def test_crime_year_null_where_crime_null(doc):
             assert cy is None, f"GEOID {p['geoid']} has crime_serious null but crime_year={cy}"
 
 
-def test_crime_tracts_are_boston_or_cambridge(doc):
-    """All non-null crime tracts must have town in Boston or Cambridge."""
+def test_crime_tracts_valid_and_suburban_uniform(doc):
+    """Non-null crime: Boston/Cambridge are tract-level; suburbs are town-level (uniform rate)."""
+    suburban_rates = {}
     for f in doc["features"]:
         p = f["properties"]
         cs = p.get("crime_serious")
-        if cs is not None:
-            town = p.get("town", "")
-            assert town in {"Boston", "Cambridge"}, f"GEOID {p['geoid']} has crime but town={town!r}"
+        if cs is None:
+            continue
+        town = p.get("town", "")
+        assert town, f"GEOID {p['geoid']} has crime but no town"
+        if town in {"Boston", "Cambridge"}:
+            continue
+        suburban_rates.setdefault(town, set()).add(cs)
+    for town, rates in suburban_rates.items():
+        assert len(rates) == 1, f"suburban town {town!r} has non-uniform crime_serious: {sorted(rates)}"
 
 
 def test_burden_owner_median_above_15(doc):

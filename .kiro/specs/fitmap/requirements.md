@@ -1,8 +1,8 @@
-# Requirements Document — FitMap
+# Requirements Document — YourBoston
 
 ## Introduction
 
-FitMap is a static web map of census tracts within 10 miles of Boston that scores each tract 0–100 against a user's priorities (budget, commute, transit, campus, safety, financial comfort) and explains every score in plain language with a next step. It serves Hackachusetts 2026, Civic Action track, challenge V1 ("One task. Too many sites and agencies. → Plain language. Show the next step.").
+YourBoston is a static web map of census tracts within 10 miles of Boston that scores each tract 0–100 against a user's priorities (budget, commute, transit, campus, safety, financial comfort) and explains every score in plain language with a next step. It serves Hackachusetts 2026, Civic Action track, challenge V1 ("One task. Too many sites and agencies. → Plain language. Show the next step.").
 
 Requirements use EARS notation. "THE System" means the pipeline plus the static frontend unless a requirement names one. Correctness properties derived from these requirements are listed in `design.md` §Correctness Properties and are implemented as property-based tests.
 
@@ -10,8 +10,8 @@ Requirements use EARS notation. "THE System" means the pipeline plus the static 
 
 - **Tract** — 2020 Census tract, identified by an 11-digit GEOID string (2 state + 3 county + 6 tract).
 - **Study area** — tracts whose TIGER internal point (INTPTLAT/INTPTLON) lies within 10 statute miles (16.0934 km) of the center point (see design).
-- **Criterion** — one of exactly seven scored axes: `rent`, `value`, `burden`, `commute`, `transit`, `campus`, `crime`.
-- **Active criteria** — criteria participating in scoring: all seven minus the inactive budget axis (per Rent/Buy switch) minus `commute` while no work tract is set.
+- **Criterion** — one of exactly six scored axes: `rent`, `value`, `burden`, `commute`, `transit`, `school`.
+- **Active criteria** — criteria participating in scoring: all six minus the inactive budget axis (per Rent/Buy switch) minus `commute` while no work tract is set.
 - **Must-have** — a per-criterion binary hard floor with a user-set threshold.
 - **Excluded tract** — a tract that fails at least one must-have; it has no score.
 - **Context (ctx_) field** — prose-only data (language, demographics/race, EJ2020); never scored.
@@ -54,16 +54,16 @@ Requirements use EARS notation. "THE System" means the pipeline plus the static 
 2. THE pipeline SHALL also emit `burden_renter_pct` and `burden_owner_pct` for the breakdown panel.
 3. THE pipeline SHALL emit every burden percentage in [0, 100] or null.
 
-### Requirement 4: Crime (town-level)
+### Requirement 4: Crime (tract-level Boston/Cambridge, town-level elsewhere)
 
 **User Story:** As a user, I want a sense of safety, so that I can weigh it against cost without being misled by false precision.
 
 #### Acceptance Criteria
 
-1. THE pipeline SHALL compute per-1,000-resident rates of serious (violent) and property offenses per municipality from EOPSS NIBRS/UCR data for a single stated year.
+1. THE pipeline SHALL compute per-1,000-resident rates of serious (violent) and property offenses per municipality from Boston PD and Cambridge PD incident reports (tract-level) and FBI NIBRS data (town-level) for a single stated year.
 2. THE pipeline SHALL exclude non-municipal reporting agencies (MBTA Transit Police, State Police, college/university police) from town rates.
-3. THE pipeline SHALL assign each tract the rates of the town (county subdivision) containing its internal point, uniformly across the town.
-4. WHEN a tract is clicked, THE frontend SHALL state that crime is a town-level rate, uniform across the town, with the source and year.
+3. THE pipeline SHALL assign Boston and Cambridge tracts tract-level rates, and every other tract the rate of its town (county subdivision), uniform across the town.
+4. WHEN a tract is clicked, THE frontend SHALL state whether crime is a tract-level or town-level rate, with the source and year.
 
 ### Requirement 5: Campus proximity and transit accessibility
 
@@ -95,7 +95,7 @@ Requirements use EARS notation. "THE System" means the pipeline plus the static 
 
 #### Acceptance Criteria
 
-1. THE frontend SHALL compute each tract's score only from the seven criterion values; no other field SHALL influence a score.
+1. THE frontend SHALL compute each tract's score only from the six criterion values; no other field SHALL influence a score.
 2. THE frontend SHALL derive criterion weights from the importance ranks of the active criteria such that every weight is in (0, 1] and the weights sum to 1.
 3. THE frontend SHALL map each criterion value to a subscore in [0, 1] using its mid-rank percentile among all study-area tracts with a non-null value, oriented so that 1 is best (lower rent, value, burden, commute, walk time, distance, crime are better).
 4. THE frontend SHALL compute the score as 100 × the weighted mean of available subscores, in [0, 100].
@@ -158,7 +158,7 @@ Requirements use EARS notation. "THE System" means the pipeline plus the static 
 
 ### Requirement 12: Equity guardrail (audit B2)
 
-**User Story:** As a fair-housing-conscious builder, I want it to be impossible for FitMap to sort people by race or language.
+**User Story:** As a fair-housing-conscious builder, I want it to be impossible for YourBoston to sort people by race or language.
 
 #### Acceptance Criteria
 

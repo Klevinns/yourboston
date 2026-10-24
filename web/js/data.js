@@ -1,5 +1,5 @@
 /**
- * data.js — load and decode the FitMap GeoJSON.
+ * data.js — load and decode the YourBoston GeoJSON.
  *
  * Decodes base64 Uint8 commute vectors into typed arrays attached to each
  * feature for fast lookup by scoring.js.

@@ -1,4 +1,4 @@
-"""FitMap pipeline CLI.
+"""YourBoston pipeline CLI.
 
 Usage:
     uv run python -m fitmap_pipeline <stage>
@@ -6,7 +6,7 @@ Usage:
 Stages:
     geography  — TIGER tracts + 10-mile filter + town join
     census     — ACS scored axes + sentinel nulling
-    crime      — EOPSS town-level rates
+    crime      — BPD/Cambridge PD (tract-level) + FBI NIBRS (town-level) rates
     campus     — nearest campus km
     stations   — MBTA rapid/CR stations
     osrm       — OSRM walk/bike/car matrices + transit access
@@ -100,9 +100,17 @@ def cmd_prose(force: bool) -> None:
     log.info("Prose done: %d rows", len(df))
 
 
+def cmd_services(force: bool) -> None:
+    from . import geography, services
+    gdf = geography.run()
+    geoids = set(gdf["GEOID"].astype(str).str.zfill(11))
+    df = services.run(geoids, force=force)
+    log.info("Services done: %d rows", len(df))
+
+
 def cmd_export(force: bool) -> None:
     import numpy as np
-    from . import geography, census, crime, campus, stations, osrm, transit, prose, export
+    from . import geography, census, crime, campus, stations, osrm, transit, prose, services, export
     from .config import INTERIM_DIR
 
     gdf     = geography.run()
@@ -116,6 +124,7 @@ def cmd_export(force: bool) -> None:
     osrm_d  = osrm.run(tracts[["GEOID", "INTPTLAT", "INTPTLON"]], sta_df)
     town_map = dict(zip(tracts["GEOID"].astype(str).str.zfill(11), tracts["town"]))
     prse_df = prose.run(geoids, town_map=town_map)
+    svc_df  = services.run(geoids)
 
     trans_acc = osrm_d["transit_access"]
 
@@ -137,7 +146,7 @@ def cmd_export(force: bool) -> None:
     )
 
     out = export.run(
-        tracts, cen_df, cri_df, cap_df, trans_acc, prse_df,
+        tracts, cen_df, cri_df, cap_df, trans_acc, prse_df, svc_df,
         osrm_d["walk"], osrm_d["bike"], osrm_d["car"], tmat_eff,
         force=force,
     )
@@ -155,6 +164,7 @@ def cmd_build(force: bool) -> None:
     cmd_osrm(force)
     cmd_transit(force)
     cmd_prose(force)
+    cmd_services(force)
     cmd_export(force)
     log.info("=== BUILD: complete ===")
 
@@ -168,13 +178,14 @@ COMMANDS = {
     "osrm":      cmd_osrm,
     "transit":   cmd_transit,
     "prose":     cmd_prose,
+    "services":  cmd_services,
     "export":    cmd_export,
     "build":     cmd_build,
 }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="FitMap pipeline")
+    parser = argparse.ArgumentParser(description="YourBoston pipeline")
     parser.add_argument(
         "stage",
         choices=list(COMMANDS),

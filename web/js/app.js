@@ -1,5 +1,5 @@
 /**
- * app.js — FitMap application entry point.
+ * app.js — YourBoston application entry point.
  *
  * Wires data + scoring + map + controls + panel together.
  */
@@ -9,12 +9,17 @@ import { scoreAll, CRITERIA, activeCriteria, criterionValue } from './scoring.js
 import * as mapMod from './map.js';
 import * as controls from './controls.js';
 import * as panel from './panel.js';
+import { icon } from './icons.js';
 
 let features = [];
 let geojson = null;
 let lastResults = null;
 
 async function main() {
+  // Icons on the map chrome buttons (before the data load so they never look blank)
+  document.getElementById('sidebar-toggle').innerHTML = icon('chevron-left', 18);
+  document.getElementById('sidebar-expand').innerHTML = icon('maximize-2', 16);
+
   // Load data + next steps in parallel
   const [data] = await Promise.all([
     loadData('data/fitmap.geojson'),
@@ -26,7 +31,6 @@ async function main() {
 
   // Init map
   mapMod.initMap(features, geojson, onTractClick);
-  mapMod.renderLegend('score');
 
   // Init controls
   controls.initControls(onStateChange, onArmWork);
@@ -37,19 +41,84 @@ async function main() {
   // Map click for setting work location
   mapMod.getMap().on('click', onMapClick);
 
-  // Initial score + render
+  // Initial score + render (also renders the legend for the current state)
   rescore(controls.getState());
+
+  // ── UI extras: sidebar toggle, collapsible sections, basemap toggle ─────────
+  // Width is driven purely by CSS classes (see app.css: .app-layout.sidebar-*).
+  const sidebar = document.querySelector('.sidebar');
+  const layout = document.querySelector('.app-layout');
+  const sbToggle = document.getElementById('sidebar-toggle');
+  const sbExpand = document.getElementById('sidebar-expand');
+
+  // Leaflet must re-measure after the grid column changes (and after any transition)
+  const refreshMapSize = () => {
+    const m = mapMod.getMap();
+    if (!m) return;
+    requestAnimationFrame(() => m.invalidateSize());
+    setTimeout(() => m.invalidateSize(), 250);
+  };
+
+  sbToggle.addEventListener('click', () => {
+    const collapsed = sidebar.classList.toggle('collapsed');
+    layout.classList.toggle('sidebar-collapsed', collapsed);
+    sidebar.setAttribute('aria-hidden', String(collapsed));
+    if (collapsed) sidebar.setAttribute('inert', ''); else sidebar.removeAttribute('inert');
+    sbToggle.innerHTML = icon(collapsed ? 'chevron-right' : 'chevron-left', 18);
+    sbToggle.setAttribute('aria-expanded', String(!collapsed));
+    sbToggle.setAttribute('aria-label', collapsed ? 'Show controls' : 'Hide controls');
+    sbExpand.disabled = collapsed;
+    refreshMapSize();
+  });
+
+  sbExpand.addEventListener('click', () => {
+    const expanded = sidebar.classList.toggle('expanded');
+    layout.classList.toggle('sidebar-expanded', expanded);
+    sbExpand.innerHTML = icon(expanded ? 'minimize-2' : 'maximize-2', 16);
+    sbExpand.setAttribute('aria-pressed', String(expanded));
+    sbExpand.setAttribute('aria-label', expanded ? 'Narrow controls' : 'Widen controls');
+    refreshMapSize();
+  });
+
+  document.querySelectorAll('.control-group h2').forEach(h => {
+    h.addEventListener('click', () => h.parentElement.classList.toggle('collapsed'));
+  });
+
+  const wireBasemap = (id, name) => {
+    document.getElementById(id).addEventListener('click', () => {
+      mapMod.setBasemap(name);
+      document.querySelectorAll('.basemap-toggle button').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+      document.getElementById(id).classList.add('active');
+      document.getElementById(id).setAttribute('aria-pressed', 'true');
+    });
+  };
+  wireBasemap('basemap-satellite', 'satellite');
+  wireBasemap('basemap-streets', 'streets');
+  wireBasemap('basemap-light', 'light');
 }
 
 function onStateChange(state) {
   mapMod.setBuyMode(state.mode === 'buy', features);
-  mapMod.renderLegend(state.mode === 'buy' ? 'buy' : 'score');
   rescore(state);
 }
 
 function rescore(state) {
   lastResults = scoreAll(features, state);
-  mapMod.restyle(lastResults);
+
+  // No guideline (no active must-have with a finite limit) → neutral, uncolored map
+  const neutral = !hasActiveMustHave(state);
+  mapMod.restyle(lastResults, { neutral });
+  mapMod.renderLegend(neutral ? 'neutral' : (state.mode === 'buy' ? 'buy' : 'score'));
+
+  if (neutral) {
+    announce('Map colors are off. Set a limit on any priority to color the map.');
+    panel.showEmptyState(null);
+    updatePrompt(state);
+    return;
+  }
 
   // Count passing (scored) tracts
   let passing = 0, excluded = 0;
@@ -107,10 +176,19 @@ function worstMustHave(state, lastResults) {
   return worst ? { criterion: worst, count: max } : null;
 }
 
+// Set by a tract's own click handler (fires before the map's) so the map-level
+// background check never closes a panel a tract click just opened.
+let tractClickPending = false;
+
 function onTractClick(geoid, feature) {
+  tractClickPending = true;
   if (controls.isWorkArmed()) {
     // In work-set mode, a tract click sets the work location
     setWork(feature);
+    return;
+  }
+  if (controls.isSchoolArmed()) {
+    setSchoolFromFeature(feature);
     return;
   }
   const result = lastResults ? lastResults.get(geoid) : null;
@@ -122,10 +200,22 @@ let armWork = false;
 function onArmWork(armed) { armWork = armed; }
 
 function onMapClick(e) {
-  if (!controls.isWorkArmed()) return;
-  // Find containing tract via point-in-polygon
   const pt = e.latlng;
+  if (controls.isSchoolArmed()) {
+    tractClickPending = false;
+    const feat = findContainingTract(pt.lng, pt.lat);
+    if (feat) setSchoolFromFeature(feat); else controls.schoolOutOfArea();
+    return;
+  }
+  // Find containing tract via point-in-polygon
   const feat = findContainingTract(pt.lng, pt.lat);
+  if (!controls.isWorkArmed()) {
+    // Background click (outside every tract) clears the selection
+    if (!feat && !tractClickPending) panel.hidePanel();
+    tractClickPending = false;
+    return;
+  }
+  tractClickPending = false;
   if (feat) {
     setWork(feat);
   } else {
@@ -135,6 +225,10 @@ function onMapClick(e) {
 
 function setWork(feature) {
   controls.setWorkTract(feature.properties.idx, feature.properties.name || feature.properties.town);
+}
+
+function setSchoolFromFeature(feature) {
+  controls.setSchoolLocation(Number(feature.properties.lat), Number(feature.properties.lon));
 }
 
 /**

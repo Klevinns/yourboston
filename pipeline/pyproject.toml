@@ -1,7 +1,7 @@
 [project]
 name = "fitmap-pipeline"
 version = "0.1.0"
-description = "FitMap data pipeline — offline precompute"
+description = "YourBoston data pipeline — offline precompute"
 requires-python = ">=3.12"
 dependencies = [
     "pandas>=2.2.0",

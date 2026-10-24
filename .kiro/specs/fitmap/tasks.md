@@ -1,4 +1,4 @@
-# Implementation Plan — FitMap
+# Implementation Plan — YourBoston
 
 Ordered build plan. Pipeline (1–9) → frontend (10–15) → deploy (16–17). Each task references the requirements it satisfies and the correctness properties (design.md) it must test. Tasks marked `*` are optional. Do not write data you could not actually fetch — if a source is unreachable, stop and report, or apply the documented null fallback.
 
@@ -24,8 +24,8 @@ Ordered build plan. Pipeline (1–9) → frontend (10–15) → deploy (16–17)
   - [ ] 3.3 Property tests: Property 10 (sentinels never survive), Property 9 (no negatives; burden ≤ 100) with hypothesis generating sentinel-laden raw rows; one example test with a hand-computed tract.
     - _Requirements: 2.2, 2.3, 3.3_
 
-- [ ] 4. Crime: EOPSS town-level rates
-  - [ ] 4.1 Implement `crime` stage: obtain EOPSS NIBRS offense counts by agency for the most recent complete year; drop MBTA Transit Police, State Police, and college/university police agencies; compute per-1,000 rates `crime_serious` (crimes against persons) and `crime_property` using town population; map agency → COUSUB town; record URL, year, and download date in `pipeline/data/SOURCES.md`.
+- [ ] 4. Crime: BPD/Cambridge PD tract-level + FBI NIBRS town-level rates
+  - [ ] 4.1 Implement `crime` stage: obtain Boston PD + Cambridge PD incident reports and FBI NIBRS offense counts by agency for the most recent complete year; drop MBTA Transit Police, State Police, and college/university police agencies; compute per-1,000 rates `crime_serious` (crimes against persons) and `crime_property` using town population; map agency → COUSUB town; record URL, year, and download date in `pipeline/data/SOURCES.md`.
     - If the data cannot be obtained, write null crime fields and note it in SOURCES.md — never fabricate.
     - _Requirements: 4.1, 4.2, 4.3_
   - [ ] 4.2 Property test for `town_rate`: result ≥ 0 or None; None when population ≤ 0.

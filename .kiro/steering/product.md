@@ -2,15 +2,15 @@
 inclusion: always
 ---
 
-# Product: FitMap
+# Product: YourBoston
 
 ## One-liner
-FitMap answers one question for a person moving to Greater Boston: **"Which neighborhoods fit my budget, my commute, and my life?"** — on one map, in plain language, with the next step shown.
+YourBoston answers one question for a person moving to Greater Boston: **"Which neighborhoods fit my budget, my commute, and my life?"** — on one map, in plain language, with the next step shown.
 
 ## Why it exists (Hackachusetts 2026 · Civic Action · Challenge V1)
 - Challenge **V1 — Simplified public services**: "One task. Too many sites and agencies." → *Plain language. Show the next step.*
 - Theme: "Better Together: Improving Where We Live, Work, Study & Play."
-- Today the housing-fit task is spread across the Census Bureau (rent/value/burden), the MBTA (transit), MassGIS (campuses), EOPSS (crime) and assorted trip planners. FitMap joins them per census tract and explains every color.
+- Today the housing-fit task is spread across the Census Bureau (rent/value/burden), the MBTA (transit), MassGIS (campuses), Boston/Cambridge police + FBI NIBRS (crime) and assorted trip planners. YourBoston joins them per census tract and explains every color.
 
 ## Target users
 - Students, early-career workers, and families relocating within ~10 miles of Boston.
@@ -19,7 +19,7 @@ FitMap answers one question for a person moving to Greater Boston: **"Which neig
 ## Core experience (locked)
 1. **Choropleth** of census tracts within **10 miles of Boston**, colored by a weighted total score 0–100.
 2. **Work location**: click anywhere on the map → snapped to the containing tract (tract-to-tract commute; no fixed hubs).
-3. **Seven scored criteria**: rent · buy value · cost burden ("financial comfort") · commute to work · transit accessibility · campus proximity · crime.
+3. **Six scored criteria**: rent · buy value · cost burden ("financial comfort") · commute to work · transit accessibility · school location.
 4. Each criterion has a **must-have toggle** (hard floor, binary, user-set threshold) and an **importance rank** (reorderable). Reordering recomputes weights and recolors the map live.
 5. Defaults: **budget (active rent-or-buy axis) + commute time = must-have**; all others nice-to-have.
 6. **Rent / Buy switch** chooses which budget axis is active.

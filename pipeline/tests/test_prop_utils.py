@@ -1,4 +1,4 @@
-"""Property-based tests for FitMap pipeline pure functions.
+"""Property-based tests for YourBoston pipeline pure functions.
 
 Tests Properties 8–11, 13 from design.md using pytest + hypothesis.
 """

@@ -1,4 +1,4 @@
-"""FitMap pipeline configuration — locked parameters."""
+"""YourBoston pipeline configuration — locked parameters."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -44,6 +44,11 @@ CRIME_MIN_POP = 100             # Minimum population for meaningful rate
 BPD_INCIDENTS_CSV = STAGED_DIR / "bpd_crime_current.csv"
 BPD_OFFENSE_CODES_XLSX = STAGED_DIR / "bpd_offense_codes.xlsx"
 CAMBRIDGE_INCIDENTS_CSV = STAGED_DIR / "cambridge_crime.csv"
+SUBURBAN_CRIME_CSV    = STAGED_DIR / "suburban_crime_by_tract.csv"
+
+# Services (OSM Overpass) — public-services access index
+SERVICES_BBOX = (42.2148, -71.2536, 42.5059, -70.8624)  # (S, W, N, E) ~10-mi radius
+SERVICES_PARK_MIN_AREA_M2 = 5000  # 0.5 ha minimum for parks (drop pocket parks)
 
 # MBTA GTFS static zip
 GTFS_ZIP = STAGED_DIR / "MBTA_GTFS.zip"

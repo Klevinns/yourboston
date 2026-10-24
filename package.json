@@ -1,7 +1,7 @@
 {
-  "name": "fitmap",
+  "name": "yourboston",
   "version": "0.1.0",
-  "description": "FitMap — Greater Boston neighborhood fit map (Hackachusetts 2026)",
+  "description": "YourBoston — Greater Boston neighborhood fit map (Hackachusetts 2026)",
   "private": true,
   "type": "module",
   "scripts": {

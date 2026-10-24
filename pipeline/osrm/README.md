@@ -1,6 +1,6 @@
-# Self-hosted OSRM for FitMap
+# Self-hosted OSRM for YourBoston
 
-FitMap's commute matrices (walk / bike / car) are computed against a
+YourBoston's commute matrices (walk / bike / car) are computed against a
 self-hosted [OSRM](https://project-osrm.org/) backend running on a Massachusetts
 OpenStreetMap extract. No Google or paid routing API is ever used.
 

@@ -9,10 +9,10 @@ inclusion: always
 
 A change that breaks this rule is rejected, even if tests pass.
 
-Why: letting users filter or rank neighborhoods by who lives there reproduces redlining and steering, which fair-housing law and basic ethics prohibit. FitMap scores places by cost, access, and safety — never by people.
+Why: letting users filter or rank neighborhoods by who lives there reproduces redlining and steering, which fair-housing law and basic ethics prohibit. YourBoston scores places by cost, access, and safety — never by people.
 
 ## What this means in code
-- The scoring module (`web/js/scoring.js`) accepts only the seven criterion keys: `rent`, `value`, `burden`, `commute`, `transit`, `campus`, `crime`. No other key may influence a score.
+- The scoring module (`web/js/scoring.js`) accepts only the six criterion keys: `rent`, `value`, `burden`, `commute`, `transit`, `school`. No other key may influence a score.
 - Prose fields are stored under the `ctx_` prefix (e.g. `ctx_lang`, `ctx_race`, `ctx_ej`). `scoring.js` must not reference any `ctx_` field — enforced by a test.
 - No UI control (toggle, slider, rank, filter, legend, sort, search) may be bound to a `ctx_` field.
 - The choropleth is never colored by a `ctx_` field, not even as an optional layer. (EJ2020 is an "overlay" in the design sense only: it is shown as text in the panel.)

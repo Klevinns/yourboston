@@ -1,12 +1,12 @@
 /**
- * scoring.js — FitMap pure scoring module.
+ * scoring.js — YourBoston pure scoring module.
  *
  * PURE: no DOM access, no Leaflet, no Math.random, no Date.
  * No context/prose-only fields (language, race, demographics, EJ).
  * All scoring logic is here and here only.
  *
  * Exports:
- *   CRITERIA          — ordered list of all seven criterion keys
+ *   CRITERIA          — ordered list of all six criterion keys
  *   rocWeights(keys)  — Rank-Order-Centroid weights {key: weight}, Σ=1
  *   percentileTables(features, keys) — sorted non-null value arrays per key
  *   subscore(value, sortedValues)    — mid-rank percentile [0,1], 1=best
@@ -18,8 +18,8 @@
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** All seven scoreable criterion keys (Requirements 7.1, equity.md). */
-export const CRITERIA = ['rent', 'value', 'burden', 'commute', 'transit', 'campus', 'crime'];
+/** All six scoreable criterion keys (Requirements 7.1, equity.md). */
+export const CRITERIA = ['rent', 'value', 'burden', 'commute', 'transit', 'school'];
 
 // All criteria are lower-is-better (design.md §scoring.js).
 // subscore orientation: 1 = best = lowest raw value.
@@ -129,6 +129,7 @@ export function activeCriteria(state) {
     if (k === 'value' && mode === 'rent')  return false;
     if (k === 'rent'  && mode === 'buy')   return false;
     if (k === 'commute' && (state.workIdx === null || state.workIdx === undefined)) return false;
+    if (k === 'school' && (state.school === null || state.school === undefined)) return false;
     return true;
   });
 }
@@ -147,10 +148,10 @@ export function criterionValue(props, key, state) {
   if (key === 'commute') {
     return _commuteValue(props, state);
   }
-  if (key === 'crime') {
-    return _crimeValue(props, state);
+  if (key === 'school') {
+    return _schoolValue(props, state);
   }
-  // Direct reads: rent, value, burden, transit, campus
+  // Direct reads: rent, value, burden, transit
   const v = props[key];
   if (v === null || v === undefined) return null;
   const n = Number(v);
@@ -225,25 +226,26 @@ function _b64ToBytes(b64) {
 }
 
 /**
- * Crime value based on crimeScope.
- * 'serious' → crime_serious (null if missing)
- * 'all'     → null unless BOTH crime_serious AND crime_property are non-null finite numbers, then sum
+ * School value: straight-line distance (miles) from this tract's internal point
+ * to the user's school location (set by clicking the map).
  */
-function _crimeValue(props, state) {
-  const scope = (state && state.crimeScope) || 'serious';
-  const s = props.crime_serious;
-  const p = props.crime_property;
-  if (scope === 'serious') {
-    if (s === null || s === undefined) return null;
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
-  }
-  // 'all': both must be non-null finite numbers
-  if (s === null || s === undefined || p === null || p === undefined) return null;
-  const ns = Number(s);
-  const np = Number(p);
-  if (!Number.isFinite(ns) || !Number.isFinite(np)) return null;
-  return ns + np;
+function _schoolValue(props, state) {
+  const s = state.school;
+  if (!s) return null;
+  const lat = Number(props.lat), lon = Number(props.lon);
+  const slat = Number(s.lat), slon = Number(s.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(slat) || !Number.isFinite(slon)) return null;
+  return haversineMi(lat, lon, slat, slon);
+}
+
+/** Great-circle distance in miles (haversine). */
+function haversineMi(lat1, lon1, lat2, lon2) {
+  const R = 3958.8;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
 

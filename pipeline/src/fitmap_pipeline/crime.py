@@ -19,6 +19,7 @@ from .config import (
     BPD_INCIDENTS_CSV,
     BPD_OFFENSE_CODES_XLSX,
     CAMBRIDGE_INCIDENTS_CSV,
+    SUBURBAN_CRIME_CSV,
     CRIME_MIN_POP,
     CRIME_YEAR,
     INTERIM_DIR,
@@ -295,6 +296,19 @@ def _load_population(geoids: set[str]) -> dict[str, int]:
     return pop
 
 
+def _load_suburban() -> pd.DataFrame:
+    """Load FBI NIBRS town-level rates for suburban (non-Boston/Cambridge) tracts."""
+    if not SUBURBAN_CRIME_CSV.exists():
+        log.warning("Suburban crime CSV not found: %s", SUBURBAN_CRIME_CSV)
+        return pd.DataFrame()
+    df = pd.read_csv(SUBURBAN_CRIME_CSV, dtype={"GEOID": str})
+    df["GEOID"] = df["GEOID"].astype(str).str.zfill(11)
+    # Boston/Cambridge stay tract-level (local PD); FBI rates apply only to suburbs.
+    df = df[~df["town"].astype(str).str.lower().isin(["boston", "cambridge"])].copy()
+    log.info("Crime: loaded %d suburban tract rows (FBI NIBRS town-level)", len(df))
+    return df
+
+
 def run(geoids: set[str], force: bool = False) -> pd.DataFrame:
     """Return DataFrame with GEOID, crime_serious, crime_property, crime_year."""
     INTERIM_DIR.mkdir(parents=True, exist_ok=True)
@@ -378,6 +392,26 @@ def run(geoids: set[str], force: bool = False) -> pd.DataFrame:
             tracts_with_rates_boston += 1
         elif town == "Cambridge":
             tracts_with_rates_cambridge += 1
+
+    # ── Suburban tracts: FBI NIBRS town-level rates ─────────────────────────────
+    sub = _load_suburban()
+    if not sub.empty:
+        have_urban = {r["GEOID"] for r in result_rows}
+        added = 0
+        for _, row in sub.iterrows():
+            g = row["GEOID"]
+            if g in have_urban:
+                continue
+            s = row.get("serious_rate_per1k")
+            p = row.get("petty_rate_per1k")
+            result_rows.append({
+                "GEOID": g,
+                "crime_serious": (round(float(s), 1) if pd.notna(s) else None),
+                "crime_property": (round(float(p), 1) if pd.notna(p) else None),
+                "crime_year": CRIME_YEAR,
+            })
+            added += 1
+        log.info("Crime: added %d suburban tracts with FBI NIBRS town-level rates", added)
 
     df = pd.DataFrame(result_rows)
 

@@ -61,6 +61,30 @@ def _to_json_val(v: Any) -> Any:
     return v
 
 
+NEARBY_CATEGORIES = ["library", "fire_station", "police", "supermarket", "park", "school"]
+
+
+def build_nearby(row: Any) -> dict[str, dict | None]:
+    """Per-category {name, m} for the nearest feature, or None if none in range.
+
+    `row` is a services row (Series or dict) with near_<cat>_name / near_<cat>_m.
+    Name may be None (unnamed OSM feature); distance is integer meters.
+    """
+    out: dict[str, dict | None] = {}
+    for cat in NEARBY_CATEGORIES:
+        m = _to_json_val(row.get(f"near_{cat}_m"))
+        if m is None or (isinstance(m, float) and (math.isnan(m) or math.isinf(m))) or m < 0:
+            out[cat] = None
+            continue
+        name = row.get(f"near_{cat}_name")
+        if name is None or (isinstance(name, float) and math.isnan(name)) or not str(name).strip():
+            name = None
+        else:
+            name = str(name).strip()
+        out[cat] = {"name": name, "m": int(round(float(m)))}
+    return out
+
+
 def encode_matrix_row(row: np.ndarray) -> str:
     """Encode one row of a duration matrix (seconds) to base64 Uint8."""
     secs = [None if np.isnan(v) else float(v) for v in row]
@@ -74,6 +98,7 @@ def build_geojson(
     campus_df: pd.DataFrame,
     transit_acc_df: pd.DataFrame,
     prose_df: pd.DataFrame,
+    services_df: pd.DataFrame,
     walk_mat: np.ndarray,
     bike_mat: np.ndarray,
     car_mat: np.ndarray,
@@ -100,6 +125,7 @@ def build_geojson(
     campus_i      = _idx(campus_df)
     transit_acc_i = _idx(transit_acc_df)
     prose_i       = _idx(prose_df)
+    services_i    = _idx(services_df)
 
     features = []
     for i, row in tracts.iterrows():
@@ -162,6 +188,11 @@ def build_geojson(
         ctx_race = _deser(ctx_race)
         ctx_ej   = _deser(ctx_ej)
 
+        # ── Services (public-services access index) ─────────────────────────────
+        sv = services_i.loc[g] if g in services_i.index else {}
+        services = _to_json_val(sv.get("services")) if len(sv) else None
+        nearby = build_nearby(sv) if len(sv) else {c: None for c in NEARBY_CATEGORIES}
+
         # ── NAMELSAD / town ────────────────────────────────────────────────────
         name_col = next((c for c in ["NAMELSAD", "NAME", "GEOID"] if c in tracts.columns), "GEOID")
         name = str(row.get(name_col, g))
@@ -194,6 +225,10 @@ def build_geojson(
             # Transit
             "transit":         transit_min,
             "transit_station": t_station,
+            # Services
+            "services":        services,
+            # Nearest named feature per category (panel context; never scored)
+            "nearby":          nearby,
             # Commute vectors
             "cm_walk":    cm_walk,
             "cm_bike":    cm_bike,
@@ -284,6 +319,7 @@ def run(
     campus_df: pd.DataFrame,
     transit_acc_df: pd.DataFrame,
     prose_df: pd.DataFrame,
+    services_df: pd.DataFrame,
     walk_mat: np.ndarray,
     bike_mat: np.ndarray,
     car_mat: np.ndarray,
@@ -297,7 +333,7 @@ def run(
 
     fc = build_geojson(
         tracts_gdf, census_df, crime_df, campus_df,
-        transit_acc_df, prose_df,
+        transit_acc_df, prose_df, services_df,
         walk_mat, bike_mat, car_mat, transit_mat,
     )
     write_geojson(fc, OUTPUT_GEOJSON, simplify=True)
@@ -308,7 +344,7 @@ def run(
 def _write_sources_md() -> None:
     """Write pipeline/data/SOURCES.md with provenance."""
     SOURCES_MD.parent.mkdir(parents=True, exist_ok=True)
-    content = f"""# FitMap Data Sources
+    content = f"""# YourBoston Data Sources
 
 Generated: {datetime.utcnow().isoformat()}Z
 
@@ -342,12 +378,29 @@ Generated: {datetime.utcnow().isoformat()}Z
   - Low-population rule: tracts with pop < {CRIME_MIN_POP} → null rates.
   - Agency: single-agency municipal data (Boston PD, Cambridge PD); MBTA Transit
     Police, State Police, campus police not included.
-  - Other towns: null pending future enrichment.
+  - Suburban towns: FBI NIBRS {CRIME_YEAR} "Offense Type by State and Territory by
+    Agency" (statesAndFederal.zip), town-level. Serious = the 8 Part-I index crimes
+    (murder, rape, robbery, aggravated assault, burglary, larceny, motor vehicle
+    theft, arson); petty = total minus serious. Rate per 1,000 residents using
+    ACS 2024 5-year town population. Uniform across the town (no block-level
+    precision implied). Municipal (city) agencies only; University/State/Tribal
+    agencies excluded.
 
 ## Campus
 - MassGIS HigherEd colleges
   - Source: /root/hackachusetts-data/civic/colleges/data.csv
   - Metric: great-circle distance (km) to nearest campus
+
+## Public services (access index)
+- OpenStreetMap via Overpass API (primary https://overpass.openstreetmap.fr/api/interpreter;
+  fallbacks overpass-api.de, overpass.osm.ch)
+  - Categories: library, fire station, police, supermarket, park
+  - Metric: distance from each tract centroid to the nearest feature per category,
+    normalized to [0,1] across tracts, averaged into a "services" index (0 = best access).
+  - Parks: point-only (node) parks dropped; park areas use their center point.
+  - "Nearby" panel: name + straight-line distance of the nearest feature per
+    category, plus schools (amenity=school). Schools are context only: not part
+    of the index, no ratings. Nothing within 10 mi → shown as "None within 10 mi".
 
 ## Transit Accessibility
 - MBTA GTFS static feed

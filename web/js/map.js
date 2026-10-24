@@ -7,11 +7,14 @@
  * applied — pattern + color, never color alone (equity.md / Req 8.2).
  */
 
-// 5-class viridis sequential palette (dark→bright = low→high score)
-const PALETTE = ['#440154', '#3b528b', '#21908d', '#5dc863', '#fde725'];
+// 5-class red→yellow→green scale (red = worst fit, green = best fit)
+const PALETTE = ['#d7191c', '#fdae61', '#ffffbf', '#a6d96a', '#1a9641'];
 const EXCLUDED_COLOR = '#8a8a8a';
 const NODATA_COLOR = '#c9c9c9';
 const TOPCODE_COLOR = '#d1495b';
+// Uniform neutral fill shown until the user sets at least one guideline
+const NEUTRAL_COLOR = '#c7ccd3';
+const NEUTRAL_OPACITY = 0.18;
 
 const SCORE_BREAKS = [20, 40, 60, 80]; // 5 classes
 
@@ -24,6 +27,50 @@ let onTractClick = null;
 let buyMode = false;
 let buyBreaks = null;
 let allGeojson = null;
+let basemapLayer = null;
+let lastResults = null;      // last scoring results (for restoring styles)
+let neutralMode = true;      // true = no guideline set → no colors
+let highlightedGeoid = null; // currently highlighted tract
+
+// Map styles — all Esri, keyless (CARTO was dropped: anonymous rate-limit
+// blanks the map mid-session). UI chrome stays dark independently of tiles.
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
+export const BASEMAPS = {
+  satellite: {
+    name: 'Satellite',
+    url: `${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, Maxar, Earthstar Geographics',
+    maxNativeZoom: 19,
+  },
+  streets: {
+    name: 'Streets',
+    url: `${ESRI}/World_Street_Map/MapServer/tile/{z}/{y}/{x}`,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors',
+    maxNativeZoom: 19,
+  },
+  light: {
+    name: 'Light',
+    url: `${ESRI}/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors',
+    maxNativeZoom: 16, // Light Gray Canvas has no tiles past z16; upscale beyond
+  },
+};
+let currentBasemap = null;
+
+export function setBasemap(name) {
+  if (!map) return;
+  const key = BASEMAPS[name] ? name : 'satellite';
+  if (key === currentBasemap && basemapLayer) return;
+  const b = BASEMAPS[key];
+  if (basemapLayer) map.removeLayer(basemapLayer);
+  basemapLayer = L.tileLayer(b.url, {
+    attribution: b.attribution,
+    maxZoom: 18,
+    maxNativeZoom: b.maxNativeZoom,
+  }).addTo(map);
+  basemapLayer.bringToBack();
+  currentBasemap = key;
+}
 
 export function initMap(features, geojson, clickHandler) {
   onTractClick = clickHandler;
@@ -33,12 +80,11 @@ export function initMap(features, geojson, clickHandler) {
     preferCanvas: true,
     center: [42.3603, -71.0580],
     zoom: 11,
+    zoomControl: false, // re-added bottom-left so it never covers the sidebar toggles
   });
+  L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 18,
-  }).addTo(map);
+  setBasemap('satellite');
 
   // SVG patterns for excluded / nodata
   if (typeof L.StripePattern === 'function') {
@@ -65,14 +111,17 @@ export function initMap(features, geojson, clickHandler) {
   }).addTo(map);
 
   try {
-    map.fitBounds(geoLayer.getBounds(), { padding: [10, 10] });
+    const bounds = geoLayer.getBounds();
+    map.fitBounds(bounds, { padding: [20, 20] });
+    map.setMaxBounds(bounds.pad(0.4));
+    map.setMinZoom(map.getZoom() - 2);
   } catch { /* ignore */ }
 
   return map;
 }
 
 function defaultStyle() {
-  return { fillColor: NODATA_COLOR, weight: 0.5, color: '#fff', fillOpacity: 0.8 };
+  return { fillColor: NEUTRAL_COLOR, weight: 0.5, color: '#fff', fillOpacity: NEUTRAL_OPACITY, opacity: 0.8 };
 }
 
 function scoreColor(score) {
@@ -111,6 +160,9 @@ export function computeBuyBreaks(features) {
 function featureFill(feature, result) {
   const p = feature.properties;
 
+  // No guideline set yet → uniform neutral fill, no score colors at all
+  if (neutralMode) return { color: NEUTRAL_COLOR, patterned: null, neutral: true };
+
   if (buyMode) {
     if (p.value === null || p.value === undefined) return { color: NODATA_COLOR, patterned: 'dots' };
     if (p.value_topcoded) return { color: TOPCODE_COLOR, patterned: p.value_moe_high ? 'hatch' : null };
@@ -123,63 +175,89 @@ function featureFill(feature, result) {
   return { color: scoreColor(result.score), patterned: null };
 }
 
+function canvasStyle(fill) {
+  if (fill.patterned) return { fillOpacity: 0, weight: 0, opacity: 0 }; // drawn on SVG overlay
+  if (fill.neutral) return defaultStyle();
+  return { fillColor: fill.color, weight: 0.5, color: '#ffffff', fillOpacity: 0.55, opacity: 1 };
+}
+
+function overlayStyle(fill) {
+  const st = { fillColor: fill.color, weight: 0.5, color: '#fff', fillOpacity: 0.9, opacity: 1 };
+  if (fill.patterned === 'hatch' && hatchPattern) st.fillPattern = hatchPattern;
+  return st;
+}
+
+function fillFor(feature) {
+  const r = lastResults ? lastResults.get(feature.properties.geoid) : null;
+  return featureFill(feature, r);
+}
+
 /**
  * Apply scoring results: color the canvas layer and move patterned tracts to
  * the SVG overlay.
+ * @param {Map} results — scoreAll() output
+ * @param {{neutral?: boolean}} opts — neutral=true → no guideline set, draw a
+ *        uniform neutral fill instead of score colors
  */
-export function restyle(results) {
+export function restyle(results, opts = {}) {
   if (!geoLayer) return;
+  lastResults = results;
+  neutralMode = !!opts.neutral;
 
   const patternedFeatures = [];
 
   geoLayer.eachLayer(layer => {
-    const f = layer.feature;
-    const r = results ? results.get(f.properties.geoid) : null;
-    const fill = featureFill(f, r);
-
-    if (fill.patterned) {
-      // Hide on canvas, draw on SVG overlay instead
-      layer.setStyle({ fillOpacity: 0, weight: 0, opacity: 0 });
-      patternedFeatures.push({ feature: f, fill });
-    } else {
-      layer.setStyle({
-        fillColor: fill.color,
-        weight: 0.5,
-        color: '#ffffff',
-        fillOpacity: 0.85,
-        opacity: 1,
-      });
-    }
+    const fill = fillFor(layer.feature);
+    layer.setStyle(canvasStyle(fill));
+    if (fill.patterned) patternedFeatures.push(layer.feature);
   });
 
   // Rebuild SVG overlay
   overlayLayer.clearLayers();
-  for (const { feature } of patternedFeatures) {
-    overlayLayer.addData(feature);
-  }
-  // Apply pattern/color per layer
-  overlayLayer.eachLayer(layer => {
-    const geoid = layer.feature.properties.geoid;
-    const match = patternedFeatures.find(pf => pf.feature.properties.geoid === geoid);
-    if (!match) return;
-    const st = { fillColor: match.fill.color, weight: 0.5, color: '#fff', fillOpacity: 0.9 };
-    if (match.fill.patterned === 'hatch' && hatchPattern) st.fillPattern = hatchPattern;
-    layer.setStyle(st);
-  });
+  for (const feature of patternedFeatures) overlayLayer.addData(feature);
+  overlayLayer.eachLayer(layer => layer.setStyle(overlayStyle(fillFor(layer.feature))));
+
+  // Keep the selected tract outlined across recolors
+  if (highlightedGeoid) applyHighlight(highlightedGeoid);
 }
 
-export function highlightTract(geoid) {
+function eachTractLayer(geoid, fn) {
   [geoLayer, overlayLayer].forEach(lyr => {
     if (!lyr) return;
     lyr.eachLayer(layer => {
-      if (!layer.feature) return;
-      const sel = layer.feature.properties.geoid === geoid;
-      if (sel) {
-        layer.setStyle({ weight: 2.5, color: '#111', opacity: 1 });
-        if (layer.bringToFront) layer.bringToFront();
-      }
+      if (layer.feature && layer.feature.properties.geoid === geoid) fn(layer, lyr);
     });
   });
+}
+
+function applyHighlight(geoid) {
+  eachTractLayer(geoid, (layer, lyr) => {
+    // A patterned tract is invisible on canvas; outline it on the overlay only
+    if (lyr === geoLayer && fillFor(layer.feature).patterned) return;
+    layer.setStyle({ weight: 2.5, color: '#111', opacity: 1 });
+    if (layer.bringToFront) layer.bringToFront();
+  });
+}
+
+/** Restore a tract's normal (non-highlighted) style. */
+function restoreStyle(geoid) {
+  eachTractLayer(geoid, (layer, lyr) => {
+    const fill = fillFor(layer.feature);
+    layer.setStyle(lyr === geoLayer ? canvasStyle(fill) : overlayStyle(fill));
+  });
+}
+
+/** Highlight one tract, un-highlighting the previously selected one. */
+export function highlightTract(geoid) {
+  if (highlightedGeoid && highlightedGeoid !== geoid) restoreStyle(highlightedGeoid);
+  highlightedGeoid = geoid;
+  applyHighlight(geoid);
+}
+
+/** Remove any tract highlight (panel closed / background clicked). */
+export function clearHighlight() {
+  if (highlightedGeoid) restoreStyle(highlightedGeoid);
+  highlightedGeoid = null;
 }
 
 export function setBuyMode(on, features) {
@@ -190,6 +268,18 @@ export function setBuyMode(on, features) {
 export function renderLegend(mode) {
   const el = document.getElementById('legend');
   if (!el) return;
+
+  if (mode === 'neutral') {
+    el.innerHTML = `
+      <h3>No colors yet</h3>
+      <div class="legend-row">
+        <span class="legend-swatch" style="background:${NEUTRAL_COLOR}"></span>
+        <span class="legend-label">Every area looks the same until you set a limit</span>
+      </div>
+      <p class="source">Type a limit for any priority (for example, max rent) to color the map by fit.</p>
+    `;
+    return;
+  }
 
   if (mode === 'buy') {
     el.innerHTML = `

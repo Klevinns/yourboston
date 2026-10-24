@@ -351,7 +351,7 @@ describe('Property 5: monotonicity', () => {
           if (!targetTract) return; // No scored tract to test
 
           const p = targetTract.properties;
-          const testKeys = ['rent', 'value', 'burden', 'transit', 'campus'];
+          const testKeys = ['rent', 'value', 'burden', 'transit'];
 
           for (const key of testKeys) {
             // Skip inactive criteria
@@ -701,65 +701,6 @@ describe('Req 7.9: worst commute (255) is scored, not missing', () => {
     );
   });
 });
-
-
-// ── Crime 'all' null propagation ─────────────────────────────────────────────
-
-describe('Crime scope all: null propagation', () => {
-  it('if crime_property is null and crime_serious non-null, criterionValue is null for scope all', () => {
-    fc.assert(
-      fc.property(
-        arbFeatureSet(),
-        ({ features, state }) => {
-          // Set crimeScope to 'all'
-          const stateAll = { ...state, crimeScope: 'all' };
-
-          // Create a feature with crime_serious but no crime_property
-          const featureWithSerious = {
-            type: 'Feature',
-            properties: {
-              ...features[0].properties,
-              crime_serious: 10,
-              crime_property: null,
-            },
-            geometry: null,
-          };
-
-          const v = criterionValue(featureWithSerious.properties, 'crime', stateAll);
-          assert.equal(v, null, 'crime should be null when property is null but serious is non-null');
-        }
-      ),
-      { numRuns: FC_RUNS }
-    );
-  });
-
-  it('if both crime_serious and crime_property are non-null, criterionValue returns their sum', () => {
-    fc.assert(
-      fc.property(
-        arbFeatureSet(),
-        ({ features, state }) => {
-          const stateAll = { ...state, crimeScope: 'all' };
-
-          const featureWithBoth = {
-            type: 'Feature',
-            properties: {
-              ...features[0].properties,
-              crime_serious: 5,
-              crime_property: 3,
-            },
-            geometry: null,
-          };
-
-          const v = criterionValue(featureWithBoth.properties, 'crime', stateAll);
-          assert.equal(v, 8, 'crime should be sum of serious + property');
-        }
-      ),
-      { numRuns: FC_RUNS }
-    );
-  });
-});
-
-
 // ── Property 12: ctx_ fields never affect scoring ────────────────────────────
 
 describe('Property 12: context fields are never scored', () => {

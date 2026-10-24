@@ -1,4 +1,4 @@
-"""Pure utility functions for FitMap pipeline.
+"""Pure utility functions for YourBoston pipeline.
 
 These functions have no I/O and are tested via pytest + hypothesis.
 """

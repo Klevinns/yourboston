@@ -32,7 +32,7 @@ Python offline precompute → **one static GeoJSON** → vanilla JS + Leaflet fr
 | Language (prose only) | ACS B16001 |
 | Demographics/race (prose only) | ACS DP05 (profile endpoint `acs/acs5/profile`) |
 | Equity overlay (prose only) | MassGIS EJ2020 block groups (join on first 11 digits of block-group GEOID) |
-| Crime | EOPSS NIBRS/UCR, **town-level** rate, uniform across a town; drop non-municipal agencies (MBTA Transit Police, State Police, campus police) |
+| Crime | Boston PD + Cambridge PD (**tract-level**) + FBI NIBRS (**town-level**, other towns); drop non-municipal agencies (MBTA Transit Police, State Police, campus police) |
 | Town membership | TIGER county subdivisions (COUSUB) |
 | Campuses | MassGIS HigherEd (staged at `/root/hackachusetts-data/civic/colleges/`, lat/long) |
 | Stations | MBTA GTFS `stops.txt` (lat/long; avoids state-plane reprojection) |

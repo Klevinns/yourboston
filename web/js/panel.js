@@ -5,6 +5,8 @@
  */
 
 import { META } from './controls.js';
+import { clearHighlight } from './map.js';
+import { icon } from './icons.js';
 
 let nextSteps = null;
 
@@ -13,6 +15,21 @@ export async function loadNextSteps(url = 'data/next-steps.json') {
     const resp = await fetch(url);
     if (resp.ok) nextSteps = await resp.json();
   } catch { nextSteps = null; }
+}
+
+/** Escape text for safe insertion into innerHTML (OSM names are untrusted). */
+function esc(v) {
+  return String(v).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** Collapsible panel section (native <details>), same pattern as "What to do next". */
+function section(title, body, { open = false, iconName = null } = {}) {
+  const lead = iconName ? icon(iconName, 15, 'summary-icon') : '';
+  return `<details class="collapsible ctx-block"${open ? ' open' : ''}>
+    <summary>${lead}<span class="summary-title">${title}</span>${icon('chevron-down', 16, 'summary-chevron')}</summary>
+    ${body}
+  </details>`;
 }
 
 function fmt(v, digits = 0) {
@@ -80,37 +97,43 @@ export function showPanel(feature, result, state) {
   }
 
   // ── Raw criterion notes ──────────────────────────────────────────────────────
-  html += `<div class="ctx-block"><h3>About these numbers</h3>`;
+  let about = '';
   if (state.mode === 'buy') {
     const valueTopcoded = p.value_topcoded === true || p.value_topcoded === 'true';
     if (valueTopcoded) {
-      html += `<p>Median owner-estimated home value, ACS 2020–2024 5-year (B25077). Self-reported; lags market prices. Hatched tracts have high margin of error.</p><p>Values at or above $2M are grouped as "$2M+".</p>`;
+      about += `<p>Median owner-estimated home value, ACS 2020–2024 5-year (B25077). Self-reported; lags market prices. Hatched tracts have high margin of error.</p><p>Values at or above $2M are grouped as "$2M+".</p>`;
     } else {
-      html += `<p>Median owner-estimated home value, ACS 2020–2024 5-year (B25077). Self-reported; lags market prices. Hatched tracts have high margin of error.</p>`;
+      about += `<p>Median owner-estimated home value, ACS 2020–2024 5-year (B25077). Self-reported; lags market prices. Hatched tracts have high margin of error.</p>`;
     }
   } else {
     const rentTopcoded = p.rent >= 3501;
     if (rentTopcoded) {
-      html += `<p>Median gross rent, ACS 2020–2024 5-year (B25064). Rents at or above $3,500 are grouped as "$3,500 or more".</p>`;
+      about += `<p>Median gross rent, ACS 2020–2024 5-year (B25064). Rents at or above $3,500 are grouped as "$3,500 or more".</p>`;
     } else {
-      html += `<p>Median gross rent, ACS 2020–2024 5-year (B25064).</p>`;
+      about += `<p>Median gross rent, ACS 2020–2024 5-year (B25064).</p>`;
     }
   }
-  // Crime note (tract-level, Boston/Cambridge only)
+  // Crime note — tract-level (local PD) for Boston/Cambridge, town-level (FBI NIBRS) elsewhere
   if (p.crime_serious !== null && p.crime_serious !== undefined) {
     const town = p.town || 'the area';
     const year = p.crime_year || 'recent';
-    let pd = 'local police';
-    if (town.toLowerCase() === 'boston') pd = 'Boston Police Department';
-    else if (town.toLowerCase() === 'cambridge') pd = 'Cambridge Police Department';
-    html += `<p>Crime: reported incidents per 1,000 residents in this census tract, ${year}, from ${pd} incident reports. Incidents are counted where they are reported, so busy areas with few residents can show high rates.</p>`;
+    const tl = town.toLowerCase();
+    if (tl === 'boston' || tl === 'cambridge') {
+      const pd = tl === 'boston' ? 'Boston Police Department' : 'Cambridge Police Department';
+      about += `<p>Crime: reported incidents per 1,000 residents in this census tract, ${year}, from ${pd} incident reports. Incidents are counted where they are reported, so busy areas with few residents can show high rates.</p>`;
+    } else {
+      about += `<p>Crime: reported incidents per 1,000 residents, ${year}, a town-level rate from FBI NIBRS data, uniform across ${town}. YourBoston does not imply block-level precision.</p>`;
+    }
   } else {
     const town = p.town || 'this area';
-    html += `<p>Crime data is not available for ${town} yet. FitMap currently has police data for Boston and Cambridge only.</p>`;
+    about += `<p>Crime data is not available for ${town} yet.</p>`;
   }
   // Car free-flow note (Req 6.8)
-  html += `<p>Car commute times are <strong>free-flow</strong> (no traffic). Transit, walking, and biking are first-class modes.</p>`;
-  html += `</div>`;
+  about += `<p>Car commute times are <strong>free-flow</strong> (no traffic). Transit, walking, and biking are first-class modes.</p>`;
+  html += section('About these numbers', about, { iconName: 'info' });
+
+  // ── Nearby places (name + distance only; never scored) ───────────────────────
+  html += renderNearby(p);
 
   // ── Context prose (ctx_, never scored) ───────────────────────────────────────
   html += renderContext(p);
@@ -128,34 +151,64 @@ function renderContext(p) {
   // Language (B16001) — may be unavailable at tract level
   const lang = parseCtx(p.ctx_lang);
   if (lang && lang.pct_non_english !== null && lang.pct_non_english !== undefined) {
-    html += `<div class="ctx-block"><h3>Languages spoken</h3>
-      <p>About ${lang.pct_non_english}% of residents age 5+ speak a language other than English at home.</p>`;
+    let body = `<p>About ${esc(lang.pct_non_english)}% of residents age 5+ speak a language other than English at home (estimate).</p>`;
     if (lang.top_languages && Object.keys(lang.top_languages).length) {
-      html += `<p>Most common: ${Object.keys(lang.top_languages).join(', ')}.</p>`;
+      body += `<p>Most common: ${Object.keys(lang.top_languages).map(esc).join(', ')}.</p>`;
     }
-    html += `<p class="source">${lang.source}</p></div>`;
+    body += `<p class="source">${esc(lang.source)}</p>`;
+    html += section('Languages spoken', body);
   }
 
   // Demographics (DP05 / B02001)
   const race = parseCtx(p.ctx_race);
   if (race && race.total_pop) {
     const pct = (v) => v ? Math.round(100 * v / race.total_pop) : 0;
-    html += `<div class="ctx-block"><h3>Who lives here</h3>
+    html += section('Who lives here', `
       <p>Of about ${fmt(race.total_pop)} residents (estimate): White alone ${pct(race.white_alone)}%, Black alone ${pct(race.black_alone)}%, Asian alone ${pct(race.asian_alone)}%, Hispanic or Latino ${pct(race.hispanic)}%.</p>
-      <p class="source">${race.source}. Percentages are estimates and may not sum to 100%.</p></div>`;
-  }
-
-  // EJ2020
-  const ej = parseCtx(p.ctx_ej);
-  if (ej) {
-    if (ej.is_ej) {
-      html += `<div class="ctx-block"><h3>Environmental Justice</h3>
-        <p>${p.town} contains Massachusetts Environmental Justice block groups (criteria: ${(ej.criteria || []).join('; ') || 'see MassGIS'}). EJ areas receive extra review and outreach for permits and programs.</p>
-        <p class="source">${ej.source}. Shown at the municipality level.</p></div>`;
-    }
+      <p class="source">${esc(race.source)}. Percentages are estimates and may not sum to 100%. Shown for context only; never used in the score or map colors.</p>`);
   }
 
   return html;
+}
+
+// Nearby categories in display order (labels are plain nouns: no ratings)
+const NEARBY = [
+  ['school',       'School',        'school'],
+  ['library',      'Library',       'library'],
+  ['park',         'Park',          'park'],
+  ['supermarket',  'Grocery store', 'grocery store'],
+  ['police',       'Police station', 'police station'],
+  ['fire_station', 'Fire station',  'fire station'],
+];
+
+function fmtMiles(m) {
+  const mi = m / 1609.344;
+  if (mi < 0.1) return 'under 0.1 mi';
+  return `${mi.toFixed(1)} mi`;
+}
+
+function renderNearby(p) {
+  const nb = p.nearby && typeof p.nearby === 'object' ? p.nearby : null;
+  let body;
+  if (!nb) {
+    body = `<p>Nearby places are not available for this tract.</p>`;
+  } else {
+    body = '<ul class="nearby-list">';
+    for (const [key, label, noun] of NEARBY) {
+      const e = nb[key];
+      let txt;
+      if (!e || !Number.isFinite(Number(e.m))) {
+        txt = 'None within 10 mi';
+      } else {
+        const name = e.name ? esc(e.name) : `Unnamed ${noun}`;
+        txt = `${name} — ${fmtMiles(Number(e.m))}`;
+      }
+      body += `<li><span class="nearby-label">${label}:</span> ${txt}</li>`;
+    }
+    body += '</ul>';
+  }
+  body += `<p class="source">Closest one of each type, in a straight line from the tract's center point (real walking distance is longer). Source: OpenStreetMap contributors. Names only; no ratings.</p>`;
+  return section('Nearby', body);
 }
 
 function parseCtx(v) {
@@ -165,7 +218,7 @@ function parseCtx(v) {
 }
 
 function renderNextSteps(p) {
-  let html = `<div class="next-steps"><h3>What to do next</h3>`;
+  let html = `<div class="next-steps"><details class="collapsible"><summary><span class="summary-title">What to do next</span>${icon('chevron-down', 16, 'summary-chevron')}</summary>`;
   if (nextSteps && Array.isArray(nextSteps.actions)) {
     html += '<ul>';
     for (const a of nextSteps.actions) {
@@ -176,13 +229,14 @@ function renderNextSteps(p) {
   } else {
     html += `<p>Next-step links are loading or unavailable.</p>`;
   }
-  html += `</div>`;
+  html += `</details></div>`;
   return html;
 }
 
 export function hidePanel() {
   const el = document.getElementById('panel');
   if (el) el.hidden = true;
+  clearHighlight();
 }
 
 /**

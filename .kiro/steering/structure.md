@@ -20,7 +20,7 @@ inclusion: always
 │   │   ├── config.py     center point, radius, counties, years, paths
 │   │   ├── census.py     ACS fetch + sentinel nulling
 │   │   ├── geography.py  TIGER tracts, radius filter, COUSUB town join
-│   │   ├── crime.py      EOPSS town-level rates
+│   │   ├── crime.py      BPD/Cambridge PD + FBI NIBRS rates
 │   │   ├── campus.py     nearest-campus distance
 │   │   ├── stations.py   GTFS rapid-transit/commuter-rail stations
 │   │   ├── osrm.py       OSRM table client (walk/bike/car)
@@ -52,6 +52,6 @@ inclusion: always
 - JS: ES modules, camelCase, `export function`; `scoring.js` imports nothing from the DOM or Leaflet.
 - GEOID is always a **string** of 11 digits (never int — leading zeros matter elsewhere and JSON ints lose meaning).
 - Feature order in the GeoJSON is sorted by GEOID; property `idx` equals the feature's array position and indexes the commute vectors.
-- Criterion keys (exactly seven, used everywhere): `rent`, `value`, `burden`, `commute`, `transit`, `campus`, `crime`.
+- Criterion keys (exactly six, used everywhere): `rent`, `value`, `burden`, `commute`, `transit`, `school`.
 - Prose-only property keys are prefixed `ctx_` and must never be read by `scoring.js`.
 - Tests live beside their package (`pipeline/tests`, `web/tests`); property tests are named `test_prop_*` / `prop.*.test.js`.

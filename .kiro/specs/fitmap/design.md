@@ -1,8 +1,8 @@
-# Design Document — FitMap
+# Design Document — YourBoston
 
 ## Overview
 
-FitMap is two programs joined by one file:
+YourBoston is two programs joined by one file:
 
 1. **Pipeline** (Python, offline, run once): fetches public data, joins it per census tract on GEOID, precomputes tract-to-tract commute times, and writes `web/data/fitmap.geojson`.
 2. **Frontend** (vanilla JS + Leaflet, static): loads that file, scores tracts client-side from the user's priorities, recolors a canvas choropleth live, and explains each tract.
@@ -16,7 +16,7 @@ flowchart LR
     A[ACS 2020–2024 5-yr API] --> J[join on GEOID]
     F --> J
     J --> S[sentinel → null]
-    C[EOPSS NIBRS town rates] --> TJ[town join via COUSUB]
+    C[BPD/Cambridge PD + FBI NIBRS crime] --> TJ[tract + town join]
     S --> TJ
     H[MassGIS HigherEd] --> CP[nearest campus km]
     G[MBTA GTFS] --> ST[rapid/CR stations]
@@ -72,7 +72,7 @@ def decode_minutes(b64: str) -> list[int]
 - **Value top-code**: `value_topcoded = estimate >= 2_000_000` (ACS top-code bin "$2,000,000 or more"). Rent (B25064) top-code: the implementer must read the current ACS top-code from Census documentation/API and record it in `config.py`; do not guess.
 - **OSRM**: Docker `osrm/osrm-backend`, MA extract from Geofabrik, three datasets (`foot.lua`, `bicycle.lua`, `car.lua`), MLD pipeline. Query `table/v1/{profile}` in chunks (≤ 100 sources × all destinations) to stay under default `max-table-size`; start the server with `--max-table-size` large enough or chunk.
 - **Transit**: Connection Scan Algorithm over GTFS weekday service on the build date's next Wednesday, departures 07:30/08:00/08:30; access/egress = OSRM foot from tract internal point to stops within 1.2 km straight-line; transfers from `transfers.txt` + same `parent_station`; walk-only alternative always considered (transit time = min(transit, walk)). Result = median of the three departure times.
-- **Crime**: EOPSS NIBRS (Massachusetts crime statistics portal) for the most recent complete year; implementer records the exact URL, year, and download date in `pipeline/data/SOURCES.md`. If the data cannot be obtained, crime fields are null, the criterion is shown as "unavailable" and the README says so — never fabricated.
+- **Crime**: Boston PD + Cambridge PD incident reports (tract-level) and FBI NIBRS (town-level) for the most recent complete year; implementer records the exact URL, year, and download date in `pipeline/data/SOURCES.md`. If the data cannot be obtained, crime fields are null, the criterion is shown as "unavailable" and the README says so — never fabricated.
 - **Prose**: B16001 (if not published at tract level for 2024 5-yr, use C16001 and say so), DP05 race/ethnicity percentages resolved **by label** from the DP05 groups endpoint (DP05 variable numbers shift between vintages — do not hard-code). EJ2020: refetch the MassGIS EJ2020 layer with `outFields=GEOID,EJ,EJ_CRIT_DESC` (the staged CSV lacks GEOID); tract = first 11 digits of block-group GEOID.
 
 ### Frontend (`web/js/`)
@@ -80,7 +80,7 @@ def decode_minutes(b64: str) -> list[int]
 `scoring.js` — **pure**, no DOM, no Leaflet, no `Math.random`, no `Date`:
 
 ```js
-export const CRITERIA = ['rent','value','burden','commute','transit','campus','crime']; // all lower-is-better
+export const CRITERIA = ['rent','value','burden','commute','transit','school']; // all lower-is-better
 export function rocWeights(rankedKeys)                      // → {key: weight}, Σ=1
 export function percentileTables(features, keys)            // → {key: sortedValues[]} over full study area
 export function subscore(value, sortedValues)               // mid-rank percentile, 1 = best, [0,1]
@@ -127,12 +127,13 @@ FeatureCollection; features sorted by `geoid`; geometry simplified with mapshape
 | `value_moe_high` | bool | MOE/estimate > 0.30 |
 | `burden` | number [0,100] \| null | % households cost-burdened |
 | `burden_renter`,`burden_owner` | number [0,100] \| null | |
-| `crime_serious`,`crime_property` | number ≥ 0 \| null | per 1,000 residents, town-level |
+| `crime_serious`,`crime_property` | number ≥ 0 \| null | per 1,000 residents; tract-level (Boston/Cambridge) or town-level |
 | `crime_year` | int \| null | |
 | `campus` | number ≥ 0 \| null | km to nearest campus |
 | `campus_name` | string \| null | |
 | `transit` | number ≥ 0 \| null | walk minutes to nearest station |
 | `transit_station` | string \| null | |
+| `services` | number [0,1] \| null | access index: distance to nearest services, 0 = closest |
 | `cm_walk`,`cm_bike`,`cm_car`,`cm_transit` | string | base64 Uint8[N] minutes, 255 = none |
 | `ctx_lang` | object \| null | prose inputs; never scored |
 | `ctx_race` | object \| null | prose inputs; never scored |

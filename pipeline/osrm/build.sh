@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build OSRM routing graphs for FitMap (reference only — graphs are prebuilt).
+# Build OSRM routing graphs for YourBoston (reference only — graphs are prebuilt).
 #
 # Downloads the Geofabrik Massachusetts extract and compiles foot / bicycle /
 # car profiles with the MLD pipeline inside the osrm/osrm-backend Docker image.

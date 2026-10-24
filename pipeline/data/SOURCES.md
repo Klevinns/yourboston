@@ -1,6 +1,6 @@
-# FitMap Data Sources
+# YourBoston Data Sources
 
-Generated: 2026-10-24T20:26:45.792657Z
+Generated: 2026-10-24T22:02:00.432596Z
 
 ## Geography
 - Census Cartographic Boundary (CB) 2023 MA Census Tracts
@@ -32,12 +32,29 @@ Generated: 2026-10-24T20:26:45.792657Z
   - Low-population rule: tracts with pop < 100 → null rates.
   - Agency: single-agency municipal data (Boston PD, Cambridge PD); MBTA Transit
     Police, State Police, campus police not included.
-  - Other towns: null pending future enrichment.
+  - Suburban towns: FBI NIBRS 2025 "Offense Type by State and Territory by
+    Agency" (statesAndFederal.zip), town-level. Serious = the 8 Part-I index crimes
+    (murder, rape, robbery, aggravated assault, burglary, larceny, motor vehicle
+    theft, arson); petty = total minus serious. Rate per 1,000 residents using
+    ACS 2024 5-year town population. Uniform across the town (no block-level
+    precision implied). Municipal (city) agencies only; University/State/Tribal
+    agencies excluded.
 
 ## Campus
 - MassGIS HigherEd colleges
   - Source: /root/hackachusetts-data/civic/colleges/data.csv
   - Metric: great-circle distance (km) to nearest campus
+
+## Public services (access index)
+- OpenStreetMap via Overpass API (primary https://overpass.openstreetmap.fr/api/interpreter;
+  fallbacks overpass-api.de, overpass.osm.ch)
+  - Categories: library, fire station, police, supermarket, park
+  - Metric: distance from each tract centroid to the nearest feature per category,
+    normalized to [0,1] across tracts, averaged into a "services" index (0 = best access).
+  - Parks: point-only (node) parks dropped; park areas use their center point.
+  - "Nearby" panel: name + straight-line distance of the nearest feature per
+    category, plus schools (amenity=school). Schools are context only: not part
+    of the index, no ratings. Nothing within 10 mi → shown as "None within 10 mi".
 
 ## Transit Accessibility
 - MBTA GTFS static feed
