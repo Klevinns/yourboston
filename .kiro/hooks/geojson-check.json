@@ -1,0 +1,23 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "geojson-check-on-save",
+      "description": "Enforce the 2,000,000-byte gzip budget and schema invariants (11-digit unique sorted GEOIDs, idx=position, no negatives, burden in [0,100], commute vectors decode to N bytes, only allowed ctx_ fields).",
+      "trigger": "PostFileSave",
+      "matcher": "(^|/)web/data/fitmap\\.geojson$",
+      "action": { "type": "command", "command": "python3 scripts/hooks/check_geojson.py web/data/fitmap.geojson" },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "geojson-check-on-create",
+      "description": "Same gate when the GeoJSON is first created.",
+      "trigger": "PostFileCreate",
+      "matcher": "(^|/)web/data/fitmap\\.geojson$",
+      "action": { "type": "command", "command": "python3 scripts/hooks/check_geojson.py web/data/fitmap.geojson" },
+      "timeout": 60,
+      "enabled": true
+    }
+  ]
+}

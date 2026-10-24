@@ -1,0 +1,32 @@
+# --- FitMap .gitignore ---
+# NOTE: .kiro/ is intentionally NOT ignored. It must be committed at repo root
+# (Hackachusetts rule; ignoring it risks disqualification). Do not add it here.
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.hypothesis/
+*.egg-info/
+
+# Pipeline intermediates and raw downloads (reproducible via `python -m fitmap_pipeline build`)
+pipeline/data/raw/
+pipeline/data/interim/
+pipeline/osrm/data/
+*.osm.pbf
+*.osrm*
+
+# Node
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/

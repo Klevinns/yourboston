@@ -1,0 +1,22 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "run-tests-on-save",
+      "description": "After Kiro saves a pipeline or web source/test file, run the matching suite (pytest+hypothesis or node --test+fast-check). Property tests live here.",
+      "trigger": "PostFileSave",
+      "matcher": "(^|/)(pipeline/(src|tests)/.+\\.py|web/(js|tests)/.+\\.js)$",
+      "action": { "type": "command", "command": "bash scripts/hooks/run_tests.sh" },
+      "timeout": 180,
+      "enabled": true
+    },
+    {
+      "name": "run-tests-after-task",
+      "description": "After each spec task completes, run both suites so a task is never marked done on red tests.",
+      "trigger": "PostTaskExec",
+      "action": { "type": "command", "command": "bash scripts/hooks/run_tests.sh" },
+      "timeout": 300,
+      "enabled": true
+    }
+  ]
+}

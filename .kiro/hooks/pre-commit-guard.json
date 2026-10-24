@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "pre-commit-guard",
+      "description": "Kiro has no commit trigger, so this PreToolUse hook inspects every shell tool call and, only when the command runs `git commit`, verifies .kiro/ exists and is not gitignored and that .kiro/ and staged files contain no secrets. Exit 2 blocks the commit.",
+      "trigger": "PreToolUse",
+      "matcher": "shell",
+      "action": { "type": "command", "command": "bash scripts/hooks/kiro_precommit_gate.sh" },
+      "timeout": 30,
+      "enabled": true
+    }
+  ]
+}

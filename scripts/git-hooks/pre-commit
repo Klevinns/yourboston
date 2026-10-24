@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Native git pre-commit (enable once: git config core.hooksPath scripts/git-hooks).
+# Covers commits made outside Kiro; Kiro-initiated commits are also gated by
+# .kiro/hooks/pre-commit-guard.json.
+exec bash "$(git rev-parse --show-toplevel)/scripts/hooks/check_kiro_committed.sh"
