@@ -148,24 +148,25 @@ export function showPanel(feature, result, state) {
 function renderContext(p) {
   let html = '';
 
-  // Language (B16001) — may be unavailable at tract level
   const lang = parseCtx(p.ctx_lang);
-  if (lang && lang.pct_non_english !== null && lang.pct_non_english !== undefined) {
-    let body = `<p>About ${esc(lang.pct_non_english)}% of residents age 5+ speak a language other than English at home (estimate).</p>`;
-    if (lang.top_languages && Object.keys(lang.top_languages).length) {
-      body += `<p>Most common: ${Object.keys(lang.top_languages).map(esc).join(', ')}.</p>`;
-    }
-    body += `<p class="source">${esc(lang.source)}</p>`;
-    html += section('Languages spoken', body);
-  }
-
-  // Demographics (DP05 / B02001)
   const race = parseCtx(p.ctx_race);
+
+  // "Who lives here" — languages spoken + race/ethnicity (context only, never scored)
   if (race && race.total_pop) {
+    let body = '';
+    // Languages spoken at home (C16001)
+    if (lang && lang.pct_non_english !== null && lang.pct_non_english !== undefined) {
+      body += `<p>About ${esc(lang.pct_non_english)}% of residents age 5+ speak a language other than English at home (estimate).</p>`;
+      if (lang.top_languages && Object.keys(lang.top_languages).length) {
+        body += `<p>Most common: ${Object.keys(lang.top_languages).map(esc).join(', ')}.</p>`;
+      }
+    }
+    // Race / ethnicity
     const pct = (v) => v ? Math.round(100 * v / race.total_pop) : 0;
-    html += section('Who lives here', `
-      <p>Of about ${fmt(race.total_pop)} residents (estimate): White alone ${pct(race.white_alone)}%, Black alone ${pct(race.black_alone)}%, Asian alone ${pct(race.asian_alone)}%, Hispanic or Latino ${pct(race.hispanic)}%.</p>
-      <p class="source">${esc(race.source)}. Percentages are estimates and may not sum to 100%. Shown for context only; never used in the score or map colors.</p>`);
+    body += `<p>Of about ${fmt(race.total_pop)} residents (estimate): White alone ${pct(race.white_alone)}%, Black alone ${pct(race.black_alone)}%, Asian alone ${pct(race.asian_alone)}%, Hispanic or Latino ${pct(race.hispanic)}%.</p>`;
+    const langSrc = lang && lang.source ? `${esc(lang.source)} · ` : '';
+    body += `<p class="source">${langSrc}${esc(race.source)}. Percentages are estimates and may not sum to 100%. Shown for context only; never used in the score or map colors.</p>`;
+    html += section('Who lives here', body);
   }
 
   return html;

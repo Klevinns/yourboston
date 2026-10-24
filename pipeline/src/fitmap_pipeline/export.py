@@ -357,7 +357,7 @@ Generated: {datetime.utcnow().isoformat()}Z
 - ACS 2020-2024 5-year estimates
   - Source: Census API (https://api.census.gov/data/2024/acs/acs5)
   - Tables: B25064 (rent), B25077 (home value), B25070 (renter burden), B25091 (owner burden)
-  - B01003_001E (population), B16001 (language), DP05 (demographics)
+  - B01003_001E (population), C16001 (language), DP05 (demographics)
   - Vintage: 2020-2024 (ACS 5-year)
   - Sentinel/annotation codes (any negative value) converted to null before arithmetic.
   - Rent: B25064 top-code "$3,500 or more" reported as 3501.

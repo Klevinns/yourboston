@@ -112,7 +112,7 @@ def run(geoids: set[str], town_map: dict[str, str] | None = None,
 
     town_map = town_map or {}
 
-    # ── Language (B16001 proxy from prose CSV) ────────────────────────────────
+    # ── Language (C16001 proxy from prose CSV) ────────────────────────────────
     prose_df = pd.read_csv(ACS_PROSE_CSV, dtype={"GEOID": str})
     prose_df["GEOID"] = prose_df["GEOID"].astype(str).str.strip().str.zfill(11)
     prose_df = prose_df[prose_df["GEOID"].isin(geoids)].copy()
@@ -163,10 +163,10 @@ def run(geoids: set[str], town_map: dict[str, str] | None = None,
         # Language context
         if g in prose_idx.index:
             pr = prose_idx.loc[g]
-            # B16001_001E = total population 5+
-            # B16001_002E = speak English only
-            total_lang = _to_num(pr.get("B16001_001E"))
-            eng_only   = _to_num(pr.get("B16001_002E"))
+            # C16001_001E = total population 5+
+            # C16001_002E = speak English only
+            total_lang = _to_num(pr.get("C16001_001E"))
+            eng_only   = _to_num(pr.get("C16001_002E"))
             non_eng    = (
                 (total_lang - eng_only)
                 if total_lang is not None and eng_only is not None
@@ -177,25 +177,35 @@ def run(geoids: set[str], town_map: dict[str, str] | None = None,
                 if total_lang and non_eng is not None
                 else None
             )
-            # Top language groups present in staged data
+            # Collapsed language groups (C16001 "total" columns)
             lang_fields = {
-                "B16001_003E": "Spanish",
-                "B16001_006E": "French / Haitian Creole",
-                "B16001_009E": "Portuguese",
-                "B16001_013E": "Chinese (incl. Mandarin, Cantonese)",
+                "C16001_003E": "Spanish",
+                "C16001_006E": "French, Haitian, or Cajun",
+                "C16001_009E": "German or other West Germanic",
+                "C16001_012E": "Russian, Polish, or other Slavic",
+                "C16001_015E": "Other Indo-European",
+                "C16001_018E": "Korean",
+                "C16001_021E": "Chinese",
+                "C16001_024E": "Vietnamese",
+                "C16001_027E": "Tagalog",
+                "C16001_030E": "Other Asian and Pacific Island",
+                "C16001_033E": "Arabic",
+                "C16001_036E": "Other and unspecified",
             }
             top_langs = {}
             for col, name in lang_fields.items():
                 v = _to_num(pr.get(col))
                 if v is not None and total_lang and v / total_lang >= 0.02:
                     top_langs[name] = round(v)
+            # most common first (not fixed column order)
+            top_langs = dict(sorted(top_langs.items(), key=lambda kv: kv[1], reverse=True))
 
             ctx_lang = {
-                "total_age5plus": _to_num(pr.get("B16001_001E")),
+                "total_age5plus": _to_num(pr.get("C16001_001E")),
                 "english_only":   eng_only,
                 "pct_non_english": pct_non_eng,
                 "top_languages":  top_langs,
-                "source": "ACS 2020-2024 5-year B16001",
+                "source": "ACS 2020-2024 5-year C16001",
             }
         else:
             ctx_lang = None

@@ -273,7 +273,7 @@ body {
 .panel {
   position: fixed;
   top: 12px; right: 12px; bottom: 12px;
-  width: 380px;
+  width: 570px;
   max-width: calc(100vw - 24px);
   background: var(--glass-bg);
   -webkit-backdrop-filter: var(--glass-blur);

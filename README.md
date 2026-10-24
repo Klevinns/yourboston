@@ -27,7 +27,7 @@ Buy-value label: *"Median owner-estimated home value, ACS 2020–2024 5-year (B2
 | Data | Source |
 |---|---|
 | Tract geometry | US Census TIGER/Line 2024 |
-| Rent, value, cost burden, language, demographics | ACS 2020–2024 5-year (B25064, B25077, B25070, B25091, B16001, DP05) |
+| Rent, value, cost burden, language, demographics | ACS 2020–2024 5-year (B25064, B25077, B25070, B25091, C16001, B02001/B03002) |
 | Crime | Boston PD + Cambridge PD (tract-level) + FBI NIBRS (town-level suburbs), non-municipal agencies excluded |
 | Campuses | MassGIS Colleges & Universities (HigherEd) |
 | Transit | MBTA GTFS static feed |
@@ -41,7 +41,7 @@ Not used: Redfin, Google Distance Matrix, or any other paid API.
 - **Study area:** 487 tracts whose TIGER internal point is within 10 statute miles of Boston City Hall (42.3603, −71.0580).
 - **Crime:** Boston PD + Cambridge PD incident reports, calendar year 2025 (latest complete year), tract-level rates (not town-level). Other towns use town-level FBI NIBRS rates. Low-population tracts (pop < 100) return null rates.
 - **Owner cost burden:** full ACS formula using B25091_008E-011E (with-mortgage 30%+) + B25091_019E-022E (without-mortgage 30%+); renter uses B25070_007E-010E. Documented in `pipeline/data/SOURCES.md`.
-- **Language (B16001):** not published at the tract level in the staged 2024 5-year extract, so the language context panel is omitted where empty. Demographics (B02001/B03002) are complete.
+- **Language (C16001):** collapsed "language spoken at home" groups (Spanish, French/Haitian/Cajun, Chinese, Vietnamese, Arabic, and others) at the tract level. The detailed B16001 table is not published at tract level in the 2024 5-year extract, so we use the collapsed C16001. Shown as context in "Who lives here"; never scored.
 - **EJ2020:** joined at the **municipality** level from a staged MassGIS extract (the staged file is keyed by town, not block-group GEOID). Presented as municipality-level context, never scored.
 - **Car times** are OSRM free-flow (no traffic) and labeled as such in the UI.
 
